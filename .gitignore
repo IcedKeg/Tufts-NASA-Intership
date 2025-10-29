@@ -1,0 +1,6 @@
+# Ignore venv
+NasaVEnv/
+
+# Ignore temporary files
+__pycache__/
+*.pyc
