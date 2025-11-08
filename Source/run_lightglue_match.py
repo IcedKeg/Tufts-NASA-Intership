@@ -57,7 +57,7 @@ for g, s in zip(ground_imgs, sat_imgs):
 for k, v in matches.items():
     print(k, type(v))
 
-    mkpts0, mkpts1 = matches["keypoints0"], matches["keypoints1"]
+    mkpts0, mkpts1 = matches["matches0"], matches["matches1"]
 
     print(f"✅ Matches found: {len(mkpts0)}")
 
