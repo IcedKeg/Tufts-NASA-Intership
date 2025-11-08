@@ -55,8 +55,8 @@ for g, s in zip(ground_imgs, sat_imgs):
     print("Returned keys:", matches.keys())
 
     # --- Extract valid keypoints ---
-    kpts0 = matches["keypoints0"]
-    kpts1 = matches["keypoints1"]
+    kpts0 = matches["keypoints"]
+    kpts1 = matches["keypoints"]
     matches0 = matches["matches0"]
 
     # --- Broadcast-safe filter ---
