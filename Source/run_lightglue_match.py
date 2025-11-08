@@ -59,40 +59,50 @@ for k, v in matches.items():
 
     mkpts0, mkpts1 = matches["matches0"], matches["matches1"]
 
-    print(f"✅ Matches found: {len(mkpts0)}")
+    import numpy as np
+import os
+import cv2
 
-print("\n🏁 All image pairs processed successfully!")
+# --- 1. Report matches (while still tensor) ---
+print(f"✅ Matches found: {mkpts0.shape[0]}")
 
-# ---- Visualization & Save ----
-import numpy as np, cv2, os
+# --- 2. Move matched keypoints off GPU and into NumPy ints ---
+mkpts0_np = mkpts0.detach().cpu().numpy().astype(int)  # (N, 2)
+mkpts1_np = mkpts1.detach().cpu().numpy().astype(int)  # (N, 2)
 
-# Convert grayscale to RGB
+# --- 3. Build side-by-side canvas of the two images ---
 vis0 = cv2.cvtColor(img0, cv2.COLOR_GRAY2BGR)
 vis1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
 
-# Create a combined canvas
 h = max(vis0.shape[0], vis1.shape[0])
-canvas = np.zeros((h, vis0.shape[1] + vis1.shape[1], 3), dtype=np.uint8)
-canvas[:vis0.shape[0], :vis0.shape[1]] = vis0
-canvas[:vis1.shape[0], vis0.shape[1]:vis0.shape[1] + vis1.shape[1]] = vis1
+w0 = vis0.shape[1]
+w1 = vis1.shape[1]
 
-# Offset for second image (so matches align correctly)
-offset = np.array([vis0.shape[1], 0])
+canvas = np.zeros((h, w0 + w1, 3), dtype=np.uint8)
+canvas[:vis0.shape[0], :w0] = vis0
+canvas[:vis1.shape[0], w0:w0 + w1] = vis1
 
-# Draw lines for each match
-for p0, p1 in zip(mkpts0.astype(int), mkpts1.astype(int)):
-    pt1 = tuple(p0[::-1])
-    pt2 = tuple((p1 + offset)[::-1])
+# Offset all points in the second image to the right
+offset = np.array([w0, 0], dtype=int)
+
+# --- 4. Draw match lines ---
+for p0, p1 in zip(mkpts0_np, mkpts1_np):
+    # p0, p1 are [x, y] in image coordinates
+    pt1 = (int(p0[0]), int(p0[1]))                       # (x, y) in left image
+    p1_shifted = p1 + offset                             # shift right
+    pt2 = (int(p1_shifted[0]), int(p1_shifted[1]))       # (x, y) in right image
+
     cv2.line(canvas, pt1, pt2, (0, 255, 0), 1)
 
-# -----------------------------
-# ✅ SAVE the visualized result
-# -----------------------------
+# --- 5. Save result to disk ---
 output_dir = r"C:\Users\ddkab\Documents\GitHub\Tufts-NASA-Intership\Results"
 os.makedirs(output_dir, exist_ok=True)
 
-output_name = f"match_{os.path.splitext(os.path.basename(g))[0]}_{os.path.splitext(os.path.basename(s))[0]}.jpg"
+g_name = os.path.splitext(os.path.basename(g))[0]
+s_name = os.path.splitext(os.path.basename(s))[0]
+output_name = f"match_{g_name}_{s_name}.jpg"
 output_path = os.path.join(output_dir, output_name)
 
 cv2.imwrite(output_path, canvas)
 print(f"💾 Saved match visualization → {output_path}")
+
