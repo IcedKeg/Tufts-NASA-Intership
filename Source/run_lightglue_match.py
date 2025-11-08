@@ -62,3 +62,37 @@ for k, v in matches.items():
     print(f"✅ Matches found: {len(mkpts0)}")
 
 print("\n🏁 All image pairs processed successfully!")
+
+# ---- Visualization & Save ----
+import numpy as np, cv2, os
+
+# Convert grayscale to RGB
+vis0 = cv2.cvtColor(img0, cv2.COLOR_GRAY2BGR)
+vis1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+
+# Create a combined canvas
+h = max(vis0.shape[0], vis1.shape[0])
+canvas = np.zeros((h, vis0.shape[1] + vis1.shape[1], 3), dtype=np.uint8)
+canvas[:vis0.shape[0], :vis0.shape[1]] = vis0
+canvas[:vis1.shape[0], vis0.shape[1]:vis0.shape[1] + vis1.shape[1]] = vis1
+
+# Offset for second image (so matches align correctly)
+offset = np.array([vis0.shape[1], 0])
+
+# Draw lines for each match
+for p0, p1 in zip(mkpts0.astype(int), mkpts1.astype(int)):
+    pt1 = tuple(p0[::-1])
+    pt2 = tuple((p1 + offset)[::-1])
+    cv2.line(canvas, pt1, pt2, (0, 255, 0), 1)
+
+# -----------------------------
+# ✅ SAVE the visualized result
+# -----------------------------
+output_dir = r"C:\Users\ddkab\Documents\GitHub\Tufts-NASA-Intership\Results"
+os.makedirs(output_dir, exist_ok=True)
+
+output_name = f"match_{os.path.splitext(os.path.basename(g))[0]}_{os.path.splitext(os.path.basename(s))[0]}.jpg"
+output_path = os.path.join(output_dir, output_name)
+
+cv2.imwrite(output_path, canvas)
+print(f"💾 Saved match visualization → {output_path}")
