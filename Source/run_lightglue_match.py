@@ -1,6 +1,6 @@
 # run_lightglue_match.py
 # Purpose: Perform LightGlue feature matching between Ground and Satellite images.
-
+import numpy as np
 import os
 import cv2
 import torch
@@ -53,56 +53,44 @@ for g, s in zip(ground_imgs, sat_imgs):
     # Match features
     matches = matcher({"image0": feats0, "image1": feats1})
     print("Returned keys:", matches.keys())
-    # 🔍 Inspect what LightGlue actually returned due to keypoint error with "keypoints0"
-for k, v in matches.items():
-    print(k, type(v))
 
-    mkpts0, mkpts1 = matches["matches0"], matches["matches1"]
+    # --- Extract valid keypoints ---
+    kpts0 = matches["keypoints0"]
+    kpts1 = matches["keypoints1"]
+    matches0 = matches["matches0"]
 
-    import numpy as np
-import os
-import cv2
+    # --- Broadcast-safe filter ---
+    valid = matches0 > -1
+    mkpts0_valid = kpts0[valid]
+    mkpts1_valid = kpts1[matches0[valid]]
 
-# --- 1. Report matches (while still tensor) ---
-print(f"✅ Matches found: {mkpts0.shape[0]}")
+    # --- Move to CPU + NumPy ints ---
+    mkpts0_np = mkpts0_valid.detach().cpu().numpy().astype(int)
+    mkpts1_np = mkpts1_valid.detach().cpu().numpy().astype(int)
 
-# --- 2. Move matched keypoints off GPU and into NumPy ints ---
-mkpts0_np = mkpts0.detach().cpu().numpy().astype(int)  # (N, 2)
-mkpts1_np = mkpts1.detach().cpu().numpy().astype(int)  # (N, 2)
+    # --- Build side-by-side canvas ---
+    vis0 = cv2.cvtColor(img0, cv2.COLOR_GRAY2BGR)
+    vis1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+    h = max(vis0.shape[0], vis1.shape[0])
+    w0, w1 = vis0.shape[1], vis1.shape[1]
+    canvas = np.zeros((h, w0 + w1, 3), dtype=np.uint8)
+    canvas[:vis0.shape[0], :w0] = vis0
+    canvas[:vis1.shape[0], w0:w0 + w1] = vis1
+    offset = np.array([w0, 0], dtype=int)
 
-# --- 3. Build side-by-side canvas of the two images ---
-vis0 = cv2.cvtColor(img0, cv2.COLOR_GRAY2BGR)
-vis1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
+    # --- Draw lines for valid matches ---
+    for p0, p1 in zip(mkpts0_np, mkpts1_np):
+        pt1 = (int(p0[0]), int(p0[1]))
+        pt2 = tuple((p1 + offset).astype(int))
+        cv2.line(canvas, pt1, pt2, (0, 255, 0), 1)
 
-h = max(vis0.shape[0], vis1.shape[0])
-w0 = vis0.shape[1]
-w1 = vis1.shape[1]
+    # --- Save visualization ---
+    output_dir = r"C:\Users\ddkab\Documents\GitHub\Tufts-NASA-Intership\Results"
+    os.makedirs(output_dir, exist_ok=True)
+    g_name = os.path.splitext(os.path.basename(g))[0]
+    s_name = os.path.splitext(os.path.basename(s))[0]
+    output_path = os.path.join(output_dir, f"match_{g_name}_{s_name}.jpg")
+    cv2.imwrite(output_path, canvas)
+    print(f"💾 Saved match visualization → {output_path}")
 
-canvas = np.zeros((h, w0 + w1, 3), dtype=np.uint8)
-canvas[:vis0.shape[0], :w0] = vis0
-canvas[:vis1.shape[0], w0:w0 + w1] = vis1
-
-# Offset all points in the second image to the right
-offset = np.array([w0, 0], dtype=int)
-
-# --- 4. Draw match lines ---
-for p0, p1 in zip(mkpts0_np, mkpts1_np):
-    # p0, p1 are [x, y] in image coordinates
-    pt1 = (int(p0[0]), int(p0[1]))                       # (x, y) in left image
-    p1_shifted = p1 + offset                             # shift right
-    pt2 = (int(p1_shifted[0]), int(p1_shifted[1]))       # (x, y) in right image
-
-    cv2.line(canvas, pt1, pt2, (0, 255, 0), 1)
-
-# --- 5. Save result to disk ---
-output_dir = r"C:\Users\ddkab\Documents\GitHub\Tufts-NASA-Intership\Results"
-os.makedirs(output_dir, exist_ok=True)
-
-g_name = os.path.splitext(os.path.basename(g))[0]
-s_name = os.path.splitext(os.path.basename(s))[0]
-output_name = f"match_{g_name}_{s_name}.jpg"
-output_path = os.path.join(output_dir, output_name)
-
-cv2.imwrite(output_path, canvas)
-print(f"💾 Saved match visualization → {output_path}")
 
